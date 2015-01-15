@@ -18,19 +18,27 @@ import (
 	"unicode/utf8"
 )
 
+const (
+	PLAYLIST = 'P'; QUEUE = 'Q'; CTL = 'C';
+)
+
+type SongRef struct {
+	Source rune // LIST | QUEUE | CTL
+	Path string
+}
+
 type M9Player struct {
 	playlist []string
 	position int
 	queue []string
 
 	player *M9Play
-	song *string
 
-	spawn chan string
+	spawn chan SongRef
 }
 
 type M9Play struct {
-	Song string
+	Song SongRef
 	proc *os.Process
 	killed bool
 	reaped bool
@@ -62,7 +70,9 @@ func (player *M9Play) Reap(m9 *M9Player) {
 		return
 	}
 	/* player terminated normally, kickoff next song */
-	if len(m9.queue) == 0 && len(m9.playlist) > 0 {
+	if len(m9.queue) > 0 {
+		m9.queue = m9.queue[1:]
+	} else if len(m9.playlist) > 0 {
 		m9.position = (m9.position + 1) % len(m9.playlist)
 	}
 	m9.Play("")
@@ -71,18 +81,18 @@ func (player *M9Play) Reap(m9 *M9Player) {
 var m9 *M9Player
 
 func NewM9Player() *M9Player {
-	m9 := M9Player{spawn: make(chan string, 15)}
+	m9 := M9Player{spawn: make(chan SongRef)}
 	go m9.spawner()
 	return &m9
 }
 
-func (m9 *M9Player) _spawn(song string) *M9Play {
+func (m9 *M9Player) _spawn(song SongRef) *M9Play {
 	path, err := exec.LookPath("m9play")
 	if err != nil {
 		fmt.Printf("couldn't find m9play: %s\n", err)
 		return nil
 	}
-	proc, err := os.StartProcess(path, []string{"m9play", song}, new(os.ProcAttr))
+	proc, err := os.StartProcess(path, []string{"m9play", song.Path}, new(os.ProcAttr))
 	if err != nil {
 		fmt.Printf("couldn't spawn player: %s\n", err)
 		return nil
@@ -105,7 +115,7 @@ func (m9 *M9Player) spawner() {
 		}
 		go player.Reap(m9)
 		m9.player = player
-		events <- "Play " + song
+		events <- m9.state()
 	}
 }
 
@@ -113,15 +123,19 @@ func (m9 *M9Player) spawner() {
 func (m9 *M9Player) state() string {
 	player := m9.player
 	if player != nil {
-		return "Play " + player.Song
+		return m9.ststr("Play", player.Song)
 	} else {
 		if len(m9.queue) > 0 {
-			return "Stop " + m9.queue[0]
+			return m9.ststr("Stop", SongRef{QUEUE, m9.queue[0]})
 		} else if len(m9.playlist) > 0 {
-			return "Stop " + m9.playlist[m9.position]
+			return m9.ststr("Stop", SongRef{PLAYLIST, m9.playlist[m9.position]})
 		}
-		return "Stop"
+		return "Stop !"
 	}
+}
+
+func (m9 *M9Player) ststr(play string, song SongRef) string {
+	return fmt.Sprintf("%s %d %c %s", play, m9.position + 1, song.Source, song.Path)
 }
 
 func (m9 *M9Player) Add(song string) {
@@ -148,25 +162,25 @@ func (m9 *M9Player) Enqueue(song string) {
 
 func (m9 *M9Player) Play(song string) {
 	if song != "" {
-		m9.spawn <- song
+		m9.spawn <- SongRef{CTL, song}
 	} else {
 		if len(m9.queue) > 0 {
-			m9.spawn <- m9.queue[0]
-			m9.queue = m9.queue[1:]
+			m9.spawn <- SongRef{QUEUE, m9.queue[0]}
 		} else if len(m9.playlist) > 0 {
-			m9.spawn <- m9.playlist[m9.position]
+			m9.spawn <- SongRef{PLAYLIST, m9.playlist[m9.position]}
 		}
 	}
 }
 
 func (m9 *M9Player) Skip(n int) {
-	if len(m9.playlist) == 0 {
-		return
-	}
-	m9.position += n
-	m9.position %= len(m9.playlist)
-	if m9.position < 0 {
-		m9.position += len(m9.playlist)
+	if len(m9.queue) > 0 {
+		m9.queue = m9.queue[1:]
+	} else if len(m9.playlist) > 0 {
+		m9.position += n
+		m9.position %= len(m9.playlist)
+		if m9.position < 0 {
+			m9.position += len(m9.playlist)
+		}
 	}
 	if m9.player != nil {
 		m9.Play("")

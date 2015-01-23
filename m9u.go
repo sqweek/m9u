@@ -3,17 +3,15 @@ package main
 import (
 	"code.google.com/p/go9p/p"
 	"code.google.com/p/go9p/p/srv"
+	"github.com/sqweek/p9p-util/p9p"
 	"strings"
 	"errors"
 	"bytes"
 	"time"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
-	"os/signal"
-	"syscall"
 	"strconv"
 	"unicode/utf8"
 )
@@ -238,8 +236,7 @@ func waitForEvent() string {
 	return ev
 }
 
-var ntype = flag.String("net", "unix", "network type")
-var addr = flag.String("addr", "/tmp/ns.sqweek.:0/m9u", "network address")
+var addr = flag.String("addr", "m9u", "service name/dial string")
 
 type CtlFile struct {
 	srv.File
@@ -449,19 +446,13 @@ func main() {
 
 	s := srv.NewFileSrv(root)
 
-	listener, err := net.Listen(*ntype, *addr)
+	listener, err := p9p.ListenSrv(*addr)
 	if err != nil {
-		fmt.Printf("listen failed: %s\n", err)
+		fmt.Printf("listen %s: %s\n", *addr, err)
 		os.Exit(1)
 	}
 	defer listener.Close()
-	sigchan := make(chan os.Signal)
-	go func() {
-		<- sigchan
-		listener.Close()
-		os.Exit(1)
-	}()
-	signal.Notify(sigchan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
+	p9p.CloseOnSignal(listener)
 
 	s.Start(s)
 	err = s.StartListener(listener)

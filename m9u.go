@@ -68,9 +68,10 @@ func (player *M9Play) Reap(m9 *M9Player) {
 		return
 	}
 	/* player terminated normally, kickoff next song */
-	if len(m9.queue) > 0 {
+	if player.Song.Source == QUEUE && len(m9.queue) > 0 {
+		/* the head of the queue was just played, now remove it */
 		m9.queue = m9.queue[1:]
-	} else if len(m9.playlist) > 0 {
+	} else if player.Song.Source == PLAYLIST && len(m9.playlist) > 0 {
 		m9.position = (m9.position + 1) % len(m9.playlist)
 	}
 	m9.Play("")
@@ -171,16 +172,17 @@ func (m9 *M9Player) Play(song string) {
 }
 
 func (m9 *M9Player) Skip(n int) {
-	if len(m9.queue) > 0 {
+	playing := m9.player
+	if len(m9.queue) > 0 && (playing == nil || playing.Song.Source == QUEUE) {
 		m9.queue = m9.queue[1:]
-	} else if len(m9.playlist) > 0 {
+	} else if len(m9.playlist) > 0 && (playing == nil || playing.Song.Source == PLAYLIST) {
 		m9.position += n
 		m9.position %= len(m9.playlist)
 		if m9.position < 0 {
 			m9.position += len(m9.playlist)
 		}
 	}
-	if m9.player != nil {
+	if playing != nil {
 		m9.Play("")
 	} else {
 		events <- m9.state()

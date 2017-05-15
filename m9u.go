@@ -148,6 +148,7 @@ func (m9 *M9Player) Add(song string) {
 
 func (m9 *M9Player) Clear() {
 	m9.playlist = make([]string, 0)
+	m9.position = 0
 }
 
 func (m9 *M9Player) Enqueue(song string) {

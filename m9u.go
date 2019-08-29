@@ -1,8 +1,8 @@
 package main
 
 import (
-	p "github.com/mortdeus/go9p"
-	"github.com/mortdeus/go9p/srv"
+	"github.com/lionkov/go9p/p"
+	"github.com/lionkov/go9p/p/srv"
 	"github.com/sqweek/p9p-util/p9p"
 	"strings"
 	"errors"

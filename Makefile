@@ -1,6 +1,7 @@
-CFLAGS=-g -Wall -I/usr/local/include
+CFLAGS?=-g -Wall
+CPPFLAGS+=-I/usr/local/include
 OBJ=main.o fs.o event.o play.o list.o
-LIBS=-L/usr/local/lib -lixp
+LIBS+=-L/usr/local/lib -lixp
 prefix=/usr/local
 
 m9u: $(OBJ)
